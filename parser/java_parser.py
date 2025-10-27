@@ -1,0 +1,109 @@
+from tree_sitter import Language, Node
+import tree_sitter_java as tsjava
+
+from typing import Union, List
+from parser.base_parser import BaseParser
+
+class JavaParser(BaseParser):
+    """
+    parse one file into: 1. {file_path: list of [FunctionData | className:[FunctionData]]}
+    parse every file's import path
+    for each file: parse import info, add all import info into the cur_file_context
+    for each file: 
+    """
+    def __init__(self):
+        super().__init__(Language(tsjava.language()), '.java')
+
+    def extract_func_list(self, root_node: Node):
+        func_query = """
+        (
+            (block_comment)* @comment .
+            (method_declaration
+                name: (identifier)@func_name
+                body: (block)@func_body
+            ) @method
+        )
+        (
+            (line_comment)* @comment .
+            (method_declaration
+                name: (identifier)@func_name
+                body: (block)@func_body
+            ) @method
+        )
+        """
+
+        query = self.LANGUAGE.query(func_query)
+        matches = query.matches(root_node)
+        func_defs = []
+        if matches:
+            for match in matches:
+                func_name = match[1]["func_name"]
+                func_body = match[1]["func_body"]
+                func = match[1]["method"]
+                comment_node = match[1].get("comment", None)                
+                func_defs.append(
+                    {
+                        "func_node": func,
+                        "name": self.nodetostr(func_name),
+                        "body": self.nodetostr(func_body),
+                        "func": self.nodetostr(func),
+                        "doc": self.nodetostr(comment_node)
+                    }
+                )
+        return func_defs
+
+
+    def get_code_block_for_comment(self, comment_node: Node) -> Union[Node, List[Node]]:
+        def is_single_line(node):
+            return node.start_point[0] == node.end_point[0]
+
+        def get_next_non_comment_sibling(node):
+            sibling = node.next_sibling
+            while sibling and sibling.type == 'comment':
+                sibling = sibling.next_sibling
+            return sibling
+
+        # 检查注释是否在行尾
+        if comment_node.prev_sibling and comment_node.prev_sibling.end_point[0] == comment_node.start_point[0]:
+            return comment_node.prev_sibling
+
+        next_node = get_next_non_comment_sibling(comment_node)
+        
+        if not next_node:
+            return None
+
+        if not is_single_line(next_node):
+            return next_node
+        
+        # 处理单行代码块的情况
+        code_block = [next_node]
+        current_node = next_node
+        line_count = 1
+
+        while line_count < 5:
+            next_sibling = current_node.next_sibling
+            if not next_sibling:
+                break
+            if not is_single_line(next_sibling):
+                break
+            code_block.append(next_sibling)
+            current_node = next_sibling
+            line_count += 1
+
+        return code_block if len(code_block) > 1 else code_block[0]
+
+    def parse_fun_to_comment(self, func_node: Node):
+        comments_query = '(line_comment)+@comment'
+        query = self.LANGUAGE.query(comments_query)
+        matches = query.matches(func_node)
+        comment_list = []
+        if matches:
+            for match in matches:
+                comment_blocks = match[1]['comment']
+                comment_str = '\n'.join([self.nodetostr(c) for c in comment_blocks])
+                code_blocks = self.get_code_block_for_comment(comment_blocks[-1])
+                if code_blocks == None:
+                    comment_list.append([comment_str, ""])
+                else:
+                    comment_list.append([comment_str, self.nodetostr(code_blocks)])
+        return comment_list
