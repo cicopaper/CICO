@@ -1,0 +1,41 @@
+# Dry-run config. It uses lightweight mock OpenAI-compatible services and downloads no models.
+
+models:
+  splitter:
+    model_name_or_path: dryrun-splitter
+    base_url: http://127.0.0.1:34567/v1
+    api_key: token-abc
+    temperature: 0.0
+  planner:
+    model_name_or_path: dryrun-planner
+    base_url: http://127.0.0.1:34568/v1
+    api_key: token-abc
+    temperature: 0.0
+  embedding:
+    model_name_or_path: dryrun-embedding
+    base_url: http://127.0.0.1:3456/v1
+    api_key: token-abc
+    dimension: 128
+    batch_size: 16
+    service:
+      embedding_dim: 128
+  generator:
+    model_name_or_path: dryrun-generator
+    base_url: http://127.0.0.1:34569/v1
+    api_key: token-abc
+    temperature: 0.0
+    max_tokens: 256
+
+pipeline:
+  language: py
+  cache_dir: .cico_cache_dryrun
+  force_rebuild: false
+  retrieve_top_k_per_plan: 3
+  retrieve_final_top_k: 5
+  max_context_chars: 8000
+
+prompts:
+  planner_system: >-
+    Dry-run planner. Split the query into three retrieval intents.
+  generator_system: >-
+    Dry-run generator. Return a fixed message confirming the pipeline is connected.

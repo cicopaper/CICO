@@ -1,0 +1,18 @@
+{
+  "cico_splitter": {
+    "file_name": "cico_splitter.json",
+    "columns": {
+      "prompt": "instruction",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "cico_planner": {
+    "file_name": "cico_planner.json",
+    "columns": {
+      "prompt": "instruction",
+      "response": "output",
+      "system": "system"
+    }
+  }
+}

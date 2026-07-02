@@ -37,14 +37,15 @@ class GoParser(BaseParser):
         """
 
         query = self.LANGUAGE.query(func_query)
-        matches = query.matches(root_node)
+        matches = self.run_query(query, root_node)
         func_defs = []
         if matches:
             for match in matches:
-                func_name = match[1]["func_name"]
-                func_body = match[1]["func_body"]
-                func = match[1]["method"]
-                comment_node = match[1].get("comment", None)                
+                captures = match[1]
+                func_name = self.cap_first(captures, "func_name")
+                func_body = self.cap_first(captures, "func_body")
+                func = self.cap_first(captures, "method")
+                comment_node = self.cap_list(captures, "comment")                
                 func_defs.append(
                     {
                         "func_node": func,
@@ -99,11 +100,11 @@ class GoParser(BaseParser):
     def parse_fun_to_comment(self, func_node: Node):
         comments_query = '(comment)+@comment'
         query = self.LANGUAGE.query(comments_query)
-        matches = query.matches(func_node)
+        matches = self.run_query(query, func_node)
         comment_list = []
         if matches:
             for match in matches:
-                comment_blocks = match[1]['comment']
+                comment_blocks = self.cap_list(match[1], 'comment')
                 comment_str = '\n'.join([self.nodetostr(c) for c in comment_blocks])
                 code_blocks = self.get_code_block_for_comment(comment_blocks[-1])
                 if code_blocks == None:

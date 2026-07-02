@@ -1,0 +1,6 @@
+# Optional Linux GPU serving dependencies for splitter/planner/generator.
+# These are not required for dry-run mode.
+
+vllm==0.6.0
+vllm-flash-attn==2.6.1
+xformers==0.0.27.post2

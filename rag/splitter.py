@@ -29,23 +29,6 @@ def extract_sig(func_str, commented_func_node, parser):
         print(f"Error in get_sig: {e}")
         return func_str
 
-def extract_comment2code(func_str, anno='//'):
-    lines = func_str.split('\n')
-    comment2code= []
-    last_line_comment = False
-    cur_comment, cur_code = '', ''
-    for l in lines:
-        if l.strip().startswith(anno): # 开始一个新的注释代码循环
-            if cur_code.strip() != '' and cur_comment.strip() != '': # 之前已经收集了一段代码
-                comment2code.append((cur_comment, cur_comment + '\n' + cur_code))
-                cur_comment, cur_code = '', ''
-            cur_comment += l + '\n'
-        else:
-            cur_code += l + '\n'
-    if cur_code.strip() != '' and cur_comment.strip() != '':
-        comment2code.append((cur_comment, cur_code))
-    return comment2code
-
 def get_comment_list(code, anno='#'):
     lines = code.split('\n')
     comment_list = []
@@ -84,9 +67,6 @@ def split(func_data: dict, parser: BaseParser, get_sig, anno: str):
     for c in comment_list:
         comment_to_code.append((c, origin_code))
     return comment_to_code
-    # cur_comment_list = extract_comment2code(commented_code, anno)
-    # comment_to_code.extend(cur_comment_list)
-    # return comment_to_code
 
 
 def split_func(func_data: dict, lang: str):

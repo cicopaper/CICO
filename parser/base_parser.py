@@ -1,4 +1,8 @@
 from tree_sitter import Parser, Node
+try:
+    from tree_sitter import QueryCursor
+except ImportError:
+    QueryCursor = None
 import os
 from abc import ABC, abstractmethod
 
@@ -98,6 +102,27 @@ class BaseParser(ABC):
         func_str = self.nodetostr(func_node)
         body_str = self.nodetostr(func_node.children_by_field_name('body'))
         return func_str[:func_str.index(body_str)]
+
+    def run_query(self, query, node: Node):
+        if hasattr(query, "matches"):
+            return query.matches(node)
+        if QueryCursor is None:
+            raise RuntimeError("tree_sitter.QueryCursor is not available")
+        return QueryCursor(query).matches(node)
+
+    def cap_first(self, captures: dict, name: str):
+        value = captures.get(name)
+        if isinstance(value, list):
+            return value[0] if value else None
+        return value
+
+    def cap_list(self, captures: dict, name: str):
+        value = captures.get(name)
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        return [value]
 
     @abstractmethod
     def extract_func_list(self, root_node: Node):

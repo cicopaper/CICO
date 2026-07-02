@@ -1,13 +1,10 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from sentence_transformers import SentenceTransformer
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any, Union
-import numpy as np
 import uvicorn
-import json
 import os
 import argparse
-import sys
 
 app = FastAPI(title="Embeddings API")
 
