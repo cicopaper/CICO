@@ -17,8 +17,6 @@
 -- start_cico_services.py
                          # start/stop OpenAI-compatible services for the four models
 -- mock_openai_server.py # lightweight mock services for dry-run pipeline checks
--- docs/
-    -- cico_pipeline.md  # full pipeline reproduction steps
 -- train_splitter_planner/
                          # optional training reproduction docs/configs for splitter and planner
 -- utils/                # utility functions
@@ -46,6 +44,18 @@ pip install -r requirements-vllm.txt
 ```
 
 ### Running CICO RAG Pipeline
+The full CICO inference pipeline uses four models:
+
+| Role | Default model |
+| --- | --- |
+| splitter | `cicopaper/cico-splitter` |
+| planner | `cicopaper/cico-planner` |
+| embedding | `Qwen/Qwen3-Embedding-8B` |
+| generator | `Qwen/Qwen2.5-Coder-14B-Instruct` |
+
+All model paths and OpenAI-compatible service endpoints are configured in `configs/cico_pipeline.yaml`.
+The pipeline takes a `repo_path`, a `query`, and a language (`py`, `java`, or `go`).
+
 If you only want to quickly verify that the environment and pipeline wiring are usable, run the dry-run mode first.
 Dry-run mode starts lightweight mock OpenAI-compatible services and does not download large model weights.
 
@@ -60,6 +70,13 @@ python run_cico_pipeline.py \
 python start_cico_services.py --config configs/cico_pipeline_dryrun.yaml --stop
 ```
 
+In dry-run mode:
+
+- embedding returns a deterministic bag-of-words hash embedding.
+- planner splits the query into three roughly equal text chunks.
+- splitter inserts a dry-run comment every two lines.
+- generator returns a fixed `DRYRUN_GENERATION_OK` message.
+
 Once you have installed the environment, configure the four model paths and endpoints in `configs/cico_pipeline.yaml`, then start the services and run the CICO pipeline:
 ```bash
 # 1. start embedding, splitter, planner and generator services
@@ -73,4 +90,62 @@ python run_cico_pipeline.py \
   --query "your task query"
 ```
 
-See `docs/cico_pipeline.md` for the staged cache layout and step-by-step pipeline.
+The service helper can also print commands without starting them:
+
+```bash
+python start_cico_services.py --config configs/cico_pipeline.yaml --dry-run
+```
+
+Start only a subset of services:
+
+```bash
+python start_cico_services.py --config configs/cico_pipeline.yaml --models embedding,generator
+```
+
+Stop services started by the helper:
+
+```bash
+python start_cico_services.py --config configs/cico_pipeline.yaml --stop
+```
+
+Logs and pids are written to `.cico_services/`.
+
+If splitter or planner checkpoints are LoRA adapters, export or merge them first with LLaMA-Factory, then set `model_name_or_path` to the exported model directory.
+
+#### Cached Stages
+
+Caches are stored under `.cico_cache/` by default. Each repository cache key is derived from the absolute repo path and language.
+
+1. `functions.json`: parsed repository functions.
+2. `split_docs.json`: splitter-produced query/document chunks.
+3. `index.faiss` and `index.faiss.json`: FAISS embedding index and document payloads.
+4. `plan.json`: planner output for each query.
+5. `retrieval.json`: retrieved context for each query.
+6. `answer.json`: generator response for each query.
+
+Use `--force-rebuild` to rebuild parser/splitter/index caches for the repo.
+
+#### Pipeline Steps
+
+1. Parse repo: tree-sitter extracts functions/methods from the target repository. Test files are skipped by the parser.
+2. Split documents: the splitter model adds docstrings/comments to functions and creates semantic chunks.
+3. Embed and build index: `Qwen/Qwen3-Embedding-8B` embeds chunks through an OpenAI-compatible endpoint and FAISS stores the vector index.
+4. Plan query: the planner decomposes the query into a JSON list of submodule comments or retrieval intents.
+5. Retrieve context: each planned subquery is embedded and searched against FAISS, then results are deduplicated and reranked.
+6. Generate answer: retrieved repository context and the original query are sent to the generator.
+
+To run one stage at a time:
+
+```bash
+# Parse repo, run splitter, embed chunks, and build FAISS index.
+python run_cico_pipeline.py --stage index --config configs/cico_pipeline.yaml --repo-path /path/to/repo --language py --query "placeholder"
+
+# Plan the query. Reuses index cache if present.
+python run_cico_pipeline.py --stage plan --config configs/cico_pipeline.yaml --repo-path /path/to/repo --language py --query "Implement ..."
+
+# Retrieve context. Reuses index and plan cache if present.
+python run_cico_pipeline.py --stage retrieve --config configs/cico_pipeline.yaml --repo-path /path/to/repo --language py --query "Implement ..."
+
+# Generate final answer. Reuses all previous caches if present.
+python run_cico_pipeline.py --stage generate --config configs/cico_pipeline.yaml --repo-path /path/to/repo --language py --query "Implement ..."
+```
